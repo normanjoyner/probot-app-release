@@ -4,12 +4,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+const getConfig = require('probot-config');
+
 const parseTitle = require('./parse-title.js');
 
 module.exports = robot => {
   robot.on('pull_request.closed', landed);
 
   async function landed(context) {
+    const config = await getConfig(context, 'release.yml', {}, {});
+
+    if (!config.enabled) {
+      return;
+    }
+
     const pr = context.payload.pull_request;
 
     if (!pr.merged) {
@@ -19,9 +27,9 @@ module.exports = robot => {
     const {github} = context;
     const labels = await github.issues.getIssueLabels(context.issue());
 
-    const isRelease = labels.data.some(
-      label => label.name.toLowerCase() === 'release',
-    );
+    const releaseLabel = config.label || 'release';
+
+    const isRelease = labels.data.some(label => label.name === releaseLabel);
 
     if (!isRelease) {
       return;
@@ -31,7 +39,6 @@ module.exports = robot => {
 
     github.repos.createRelease(
       context.repo({
-        body: tag_name,
         tag_name,
         prerelease,
         name: tag_name,
